@@ -30,7 +30,7 @@ class Analyser {
 	/**
 	 * convert segment definiton from XML to array. Sequence of data_elements and
 	 * composite_data_element same as in XML
-	 * @param char $segment_xml_file
+	 * @param string $segment_xml_file
 	 */
 	public function loadSegmentsXml($segment_xml_file) {
 
@@ -103,7 +103,7 @@ class Analyser {
 	/**
 	 * create readble EDI MESSAGE with comments
 	 * @param array $data by EDI\parser() created array from plain EDI message
-	 * @return text file
+	 * @return string file
 	 */
 	public function process($data){
 		$r = array();
