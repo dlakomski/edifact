@@ -72,18 +72,19 @@ class Reader
     /**
      * read data value from parsed EDI data
      *
-     * @param     array /string $filter
-     *                  'AGR' - segment code
-     *                  or ['AGR',['1'=>'BB']], where AGR segment code and first element equal 'BB'
-     *                  or ['AGR',['1.0'=>'BB']], where AGR segment code and first element zero subelement  equal 'BB'
-     * @param int $l1   first level item number (start by 1)
-     * @param     int   /false $l2 second level item number (start by 0)
-     * @return string/null
+     * @param array|string $filter 'AGR' - segment code
+     *                             or ['AGR',['1'=>'BB']], where AGR segment code and first element equal 'BB'
+     *                             or ['AGR',['1.0'=>'BB']], where AGR segment code and first element zero subelement  equal 'BB'
+     * @param int          $l1     first level item number (start by 1)
+     * @param int|bool     $l2     second level item number (start by 0)
+     * @param bool         $required
+     * @param bool         $ignoreMultiple
+     * @return string /null
      */
-    public function readEdiDataValue($filter, $l1, $l2 = false, $required = false)
+    public function readEdiDataValue($filter, $l1, $l2 = false, $required = false, $ignoreMultiple = false)
     {
 
-        //interpret filter arameters
+        //interpret filter parameters
         if (!is_array($filter)) {
             $segment_name = $filter;
             $filter_elements = false;
@@ -134,10 +135,10 @@ class Reader
 
         //found more one segment - error
         if ($segment_count > 1) {
-
-            $this->errors[] = 'Segment "' . $segment_name . '" is ambiguous';
-
-            return null;
+            if (!$ignoreMultiple) {
+                $this->errors[] = 'Segment "' . $segment_name . '" is ambiguous';
+                return null;
+            }
         }
 
         //validate elements
@@ -171,22 +172,25 @@ class Reader
     /**
      * read date from DTM segment period qualifier - codelist 2005
      *
-     * @param int $PeriodQualifier period qualifier (codelist/2005)
+     * @param int $periodQualifier period qualifier (codelist/2005)
      * @return string YYYY-MM-DD HH:MM:SS
      */
-    public function readEdiSegmentDTM($PeriodQualifier)
+    public function readEdiSegmentDTM($periodQualifier)
     {
+        $date = $this->readEdiDataValue(['DTM', ['1.0' => $periodQualifier]], 1, 1);
+        $format = $this->readEdiDataValue(['DTM', ['1.0' => $periodQualifier]], 1, 2);
 
-        $date = $this->readEdiDataValue(['DTM', ['1.0' => $PeriodQualifier]], 1, 1);
-        $format = $this->readEdiDataValue(['DTM', ['1.0' => $PeriodQualifier]], 1, 2);
         if (empty($date)) {
             return $date;
         }
-        switch ($format) {
 
+        switch ($format) {
             case 203: //CCYYMMDDHHMM
                 return preg_replace('#(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)#', '$1-$2-$3 $4:$5:00', $date);
+                break;
 
+            case 102:
+                return preg_replace('/(\d){4}(\d){2}(\d){2}/', '$1-$2-$3', $date);
                 break;
 
             default:
@@ -195,9 +199,13 @@ class Reader
         }
     }
 
-    public function readUNBDateTimeOfPpreperation()
+    /**
+     * Read UNB datetime of preparation
+     *
+     * @return mixed|string
+     */
+    public function readUNBDateTimeOfPreparation()
     {
-
         //separate date (YYMMDD) and time (HHMM)
         $date = $this->readEdiDataValue('UNB', 4, 0);
         if (!empty($date)) {
@@ -214,18 +222,27 @@ class Reader
         return $datetime;
     }
 
+    /**
+     * Read TDT transport identification
+     *
+     * @param $transportStageQualifier
+     * @return string
+     */
     public function readTDTtransportIdentification($transportStageQualifier)
     {
-
         $transportIdentification = $this->readEdiDataValue(['TDT', ['1' => $transportStageQualifier]], 8, 0);
         if (!empty($transportIdentification)) {
             return $transportIdentification;
         }
 
         return $this->readEdiDataValue(['TDT', ['1' => $transportStageQualifier]], 8);
-
     }
 
+    /**
+     * Read message type
+     *
+     * @return string
+     */
     public function readUNHmessageType()
     {
         return $this->readEdiDataValue('UNH', 2, 0);
